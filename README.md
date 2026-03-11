@@ -33,12 +33,65 @@
 
 ## 📦 安装
 
-### 方式一：直接克隆
+### 方式一：直接克隆（推荐）
 
 ```bash
+# 1. 克隆到本地
 git clone https://github.com/ztow/zw-photo-organizer.git
+
+# 2. 进入目录
 cd zw-photo-organizer
-pip install -r requirements.txt
+
+# 3. 安装依赖
+pip3 install -r requirements.txt
+# 或
+pip3 install Pillow --break-system-packages
+
+# 4. 运行
+python3 scripts/organize.py "/path/to/your/photos"
+```
+
+### 方式二：OpenClaw Skill 安装
+
+```bash
+# 克隆到 OpenClaw skills 目录
+git clone https://github.com/ztow/zw-photo-organizer.git ~/.openclaw/skills/zw-photo-organizer
+
+# 安装依赖
+pip3 install Pillow --break-system-packages
+
+# 配置 OpenClaw（可选）
+# 编辑 ~/.openclaw/openclaw.json 添加：
+# {
+#   "skills": {
+#     "zw-photo-organizer": {
+#       "path": "~/.openclaw/skills/zw-photo-organizer",
+#       "command": "/zphoto"
+#     }
+#   }
+# }
+```
+
+### 方式三：一键安装脚本
+
+```bash
+# 使用安装脚本（推荐 Mac/Linux）
+curl -fsSL https://raw.githubusercontent.com/ztow/zw-photo-organizer/main/install.sh | bash
+
+# 或使用 wget
+wget -qO- https://raw.githubusercontent.com/ztow/zw-photo-organizer/main/install.sh | bash
+```
+
+安装后直接使用：
+```bash
+zphoto "/path/to/your/photos"
+```
+
+### 方式四：OpenClaw 官方安装（未来支持）
+
+```bash
+# 未来将通过 OpenClaw 官方安装
+openclaw skill install zw-photo-organizer
 ```
 
 ### 方式二：作为 OpenClaw Skill 安装
