@@ -15,9 +15,17 @@ from collections import defaultdict
 from PIL import Image
 from PIL.ExifTags import TAGS
 
+# 尝试导入 HEIF 支持
+try:
+    import pillow_heif
+    pillow_heif.register_heif_opener()
+    HEIF_SUPPORT = True
+except ImportError:
+    HEIF_SUPPORT = False
+
 # 照片扩展名（支持大小写）
-PHOTO_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.cr2', '.nef', '.arw', '.heic', '.mov', '.mp4',
-                    '.JPG', '.JPEG', '.PNG', '.CR2', '.NEF', '.ARW', '.HEIC', '.MOV', '.MP4'}
+PHOTO_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.cr2', '.nef', '.arw', '.heic', '.heif', '.mov', '.mp4',
+                    '.JPG', '.JPEG', '.PNG', '.CR2', '.NEF', '.ARW', '.HEIC', '.HEIF', '.MOV', '.MP4'}
 
 
 def extract_date_from_filename(filename):
@@ -34,9 +42,15 @@ def extract_date_from_filename(filename):
     return None
 
 
-def extract_date_from_parent_dirs(file_path, max_depth=3):
+def extract_date_from_parent_dirs(file_path, max_depth=3, source_root=None):
     """Level 2: 从上级目录提取日期"""
-    current_dir = Path(file_path).parent
+    file_path = Path(file_path)
+    current_dir = file_path.parent
+    
+    # 如果文件直接在源目录根目录，跳过
+    if source_root and current_dir == Path(source_root):
+        return None
+    
     for _ in range(max_depth):
         dir_name = current_dir.name
         
@@ -46,14 +60,16 @@ def extract_date_from_parent_dirs(file_path, max_depth=3):
             year, month, day = chinese_match.groups()
             return f"{year}_{int(month):02d}_{int(day):02d}"
         
-        # 标准格式
-        standard_match = re.search(r'(\d{4})[_-]?(\d{1,2})[_-]?(\d{1,2})', dir_name)
+        # 标准格式（但排除纯数字如 20260311）
+        standard_match = re.search(r'(\d{4})[_-](\d{1,2})[_-](\d{1,2})', dir_name)
         if standard_match:
             year, month, day = standard_match.groups()
             if 2010 <= int(year) <= 2030:
                 return f"{year}_{int(month):02d}_{int(day):02d}"
         
         current_dir = current_dir.parent
+        if source_root and current_dir == Path(source_root):
+            break
     return None
 
 
@@ -61,7 +77,13 @@ def extract_date_from_exif(file_path):
     """Level 3: 从 EXIF 提取日期"""
     try:
         image = Image.open(file_path)
-        exif = image._getexif()
+        
+        # 尝试获取 EXIF 数据（支持 HEIF）
+        exif = None
+        if hasattr(image, '_getexif'):
+            exif = image._getexif()
+        
+        # 标准 EXIF 解析
         if exif:
             for tag_id, value in exif.items():
                 tag = TAGS.get(tag_id, tag_id)
@@ -69,7 +91,18 @@ def extract_date_from_exif(file_path):
                     date_str = value.split(' ')[0]  # 2024:10:03
                     year, month, day = date_str.split(':')
                     return f"{year}_{int(month):02d}_{int(day):02d}"
-    except Exception:
+        
+        # HEIF 格式：从二进制 EXIF 中提取日期
+        if hasattr(image, 'info') and 'exif' in image.info:
+            exif_data = image.info['exif']
+            if isinstance(exif_data, bytes):
+                # 在二进制数据中搜索日期格式 YYYY:MM:DD
+                import re
+                date_match = re.search(rb'(\d{4}):(\d{2}):(\d{2})', exif_data)
+                if date_match:
+                    year, month, day = date_match.groups()
+                    return f"{year.decode()}_{int(month.decode()):02d}_{int(day.decode()):02d}"
+    except Exception as e:
         pass
     return None
 
@@ -81,7 +114,7 @@ def extract_date_from_mtime(file_path):
     return f"{dt.year}_{dt.month:02d}_{dt.day:02d}"
 
 
-def get_photo_date(file_path):
+def get_photo_date(file_path, source_root=None):
     """完整日期识别流程，返回 (日期, 来源)"""
     filename = Path(file_path).name
     
@@ -91,7 +124,7 @@ def get_photo_date(file_path):
         return date, 'filename'
     
     # Level 2: 上级目录
-    date = extract_date_from_parent_dirs(file_path)
+    date = extract_date_from_parent_dirs(file_path, source_root=source_root)
     if date:
         return date, 'parent_dir'
     
@@ -155,7 +188,7 @@ def organize_photos(source_dir, dry_run=False):
     
     # 处理每张照片
     for photo_path in photos:
-        date, source_type = get_photo_date(photo_path)
+        date, source_type = get_photo_date(photo_path, source_root=source)
         stats['by_source'][source_type] += 1
         
         if not date:
