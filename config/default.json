@@ -1,0 +1,33 @@
+{
+  "name": "赵兄的智能照片整理",
+  "version": "1.0.0",
+  "description": "智能照片整理工具，支持四级日期识别",
+  "photo_extensions": [
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".cr2",
+    ".nef",
+    ".arw",
+    ".heic",
+    ".mov",
+    ".mp4"
+  ],
+  "date_patterns": {
+    "filename": [
+      "\\d{4}[_-]?\\d{2}[_-]?\\d{2}"
+    ],
+    "directory": [
+      "\\d{4}年\\d{1,2}月\\d{1,2}日",
+      "\\d{4}[_-]?\\d{1,2}[_-]?\\d{1,2}"
+    ]
+  },
+  "max_parent_depth": 3,
+  "unsure_folder": "拿不准",
+  "index_filename_template": "{date}_照片索引.md",
+  "directory_structure": {
+    "year": "{year}",
+    "month": "{year}_{month}",
+    "day": "{year}_{month}_{day}"
+  }
+}
