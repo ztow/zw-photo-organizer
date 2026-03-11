@@ -15,8 +15,9 @@ from collections import defaultdict
 from PIL import Image
 from PIL.ExifTags import TAGS
 
-# 照片扩展名
-PHOTO_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.cr2', '.nef', '.arw', '.heic', '.mov', '.mp4'}
+# 照片扩展名（支持大小写）
+PHOTO_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.cr2', '.nef', '.arw', '.heic', '.mov', '.mp4',
+                    '.JPG', '.JPEG', '.PNG', '.CR2', '.NEF', '.ARW', '.HEIC', '.MOV', '.MP4'}
 
 
 def extract_date_from_filename(filename):
@@ -29,7 +30,7 @@ def extract_date_from_filename(filename):
         if match:
             year, month, day = match.groups()
             if 2010 <= int(year) <= 2030 and 1 <= int(month) <= 12 and 1 <= int(day) <= 31:
-                return f"{year}_{int(month)}_{int(day)}"
+                return f"{year}_{int(month):02d}_{int(day):02d}"
     return None
 
 
@@ -43,14 +44,14 @@ def extract_date_from_parent_dirs(file_path, max_depth=3):
         chinese_match = re.search(r'(\d{4})年(\d{1,2})月(\d{1,2})日', dir_name)
         if chinese_match:
             year, month, day = chinese_match.groups()
-            return f"{year}_{int(month)}_{int(day)}"
+            return f"{year}_{int(month):02d}_{int(day):02d}"
         
         # 标准格式
         standard_match = re.search(r'(\d{4})[_-]?(\d{1,2})[_-]?(\d{1,2})', dir_name)
         if standard_match:
             year, month, day = standard_match.groups()
             if 2010 <= int(year) <= 2030:
-                return f"{year}_{int(month)}_{int(day)}"
+                return f"{year}_{int(month):02d}_{int(day):02d}"
         
         current_dir = current_dir.parent
     return None
@@ -67,7 +68,7 @@ def extract_date_from_exif(file_path):
                 if tag == 'DateTimeOriginal':
                     date_str = value.split(' ')[0]  # 2024:10:03
                     year, month, day = date_str.split(':')
-                    return f"{year}_{int(month)}_{int(day)}"
+                    return f"{year}_{int(month):02d}_{int(day):02d}"
     except Exception:
         pass
     return None
@@ -77,7 +78,7 @@ def extract_date_from_mtime(file_path):
     """Level 4: 从文件修改时间提取"""
     stat = os.stat(file_path)
     dt = datetime.fromtimestamp(stat.st_mtime)
-    return f"{dt.year}_{dt.month}_{dt.day}"
+    return f"{dt.year}_{dt.month:02d}_{dt.day:02d}"
 
 
 def get_photo_date(file_path):
@@ -106,7 +107,7 @@ def get_photo_date(file_path):
 
 def is_photo(file_path):
     """检查是否为照片文件"""
-    return Path(file_path).suffix.lower() in PHOTO_EXTENSIONS
+    return Path(file_path).suffix.lower() in {ext.lower() for ext in PHOTO_EXTENSIONS}
 
 
 def organize_photos(source_dir, dry_run=False):
@@ -138,8 +139,14 @@ def organize_photos(source_dir, dry_run=False):
     photos = []
     for file_path in source.rglob('*'):
         if file_path.is_file() and is_photo(file_path):
-            # 跳过已整理目录中的文件
-            if '拿不准' in str(file_path) or '/202' in str(file_path):
+            # 跳过已整理目录中的文件（检查是否在 年/月/日 结构目录中）
+            rel_path = str(file_path.relative_to(source))
+            if '拿不准' in rel_path:
+                continue
+            # 检查是否在 2024/2024_11/2024_11_08 这种结构中
+            parts = rel_path.split('/')
+            if len(parts) >= 3 and parts[0].isdigit() and len(parts[0]) == 4:
+                # 可能是已整理的年/月/日结构，跳过
                 continue
             photos.append(file_path)
     
