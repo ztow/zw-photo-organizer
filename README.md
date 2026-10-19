@@ -1,33 +1,99 @@
 # zw-photo-organizer
 
-> 赵兄的智能照片整理 - 一个支持四级日期识别的照片自动分类工具
+> 赵兄的智能照片整理 —— 复制式照片整理工具：三级日期识别 + 双台账管理 + 按台账清理，原始文件一张不删。
 
 [![Python](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ---
 
-## ✨ 功能特性
+## 📝 更新日志
 
-- 📅 **四级日期识别** - 智能识别照片拍摄日期
-  - Level 1: 文件名（如 `IMG_20241003_143022.jpg`）
-  - Level 2: 上级目录（如 `哈尔滨市, 2025年2月12日/`）
-  - Level 3: EXIF 元数据
-  - Level 4: 文件修改时间（mtime）
-  
-- 📁 **三层嵌套结构** - 年/月/日 自动分类
-  ```
-  2024/
-  └── 2024_11/
-      └── 2024_11_08/
-          └── IMG_0001.JPG
-  ```
+### v2.0.0（2026-10-19）—— 复制式整理，原始文件一张不删
 
-- 📝 **自动生成索引** - 整理完成后生成 Markdown 清单
+**改动背景**：v1.x 是"移动式"整理——照片被移入年/月/日目录，且用 mtime（文件修改时间）兜底。实际使用中发现两个问题：① 修改时间不可靠，可能是复制过去的时间，也可能被其它操作改动；② 一旦归档有误，原目录结构已被破坏，难以恢复。
 
-- 🛡️ **安全操作** - 只移动不删除，拿不准的照片单独存放
+**本次更新内容**：
 
-- 🔍 **重复检测** - 检测同名文件和重复文件
+- ❌ **去掉 mtime 日期识别** —— 三级识别（文件名 → 上级目录 → EXIF）都落空的照片判为「拿不准」：不复制、不删除、留在原处，在台账里单列
+- 📋 **改为复制式整理** —— 照片复制到源目录下新建的「整理后照片/年/年月/年月日」，原始文件一张不删，随时可反悔
+- 📒 **新增双台账** —— 整理后生成 `整理台账.md`（人读）+ `整理台账.json`（机读），记录每张照片的日期、日期来源、源路径、目标路径
+- 🧹 **新增按台账清理脚本 `clean_organized.py`** —— 核对无误后按台账删除已整理的原始文件：只删台账内的、删前校验副本、拿不准的一律保留、默认预览模式必须 `--execute` 才真删
+- 🔧 **重复检测修复** —— `detect_duplicate.py` 跳过「整理后照片」目录，副本不再被误报为重复
+- 🔁 **支持重复运行** —— 同一目录可反复整理，已复制的文件自动跳过，目标重名自动加 `_1` 后缀
+
+### v1.2.0（2026-03-11）
+
+- 添加 HEIF 支持，修复根目录日期误识别
+
+### v1.1.0（2026-03-11）
+
+- 日期格式优化，月份和日期补零（1→01，8→08）
+
+### v1.0.0（2026-03-11）
+
+- 初始版本，支持四级日期识别（文件名 → 上级目录 → EXIF → mtime）和自动生成索引
+
+---
+
+## ✨ 功能特性（完整说明）
+
+### 1. 📅 三级日期识别（不用 mtime）
+
+按优先级逐级尝试，取第一个能识别出的日期：
+
+| 优先级 | 识别源 | 典型场景 | 支持的格式示例 |
+|--------|--------|----------|----------------|
+| 1 | 文件名 | 安卓手机导出 | `IMG_20241003_143022.jpg` → 2024-10-03；`VID_20231125_203015.mp4` → 2023-11-25；`Screenshot_20250115_112233.png`；`20241225_Christmas_001.jpg` → 2024-12-25；也支持 `2024-10-03`、`2024_10_03` 等带分隔符写法 |
+| 2 | 上级目录名（最多上溯 3 层） | 苹果相册导出 | `哈尔滨市, 2025年2月12日/` → 2025-02-12；`2024年10月3日/`；`2023-11-25/`；`2024_10_03/` |
+| 3 | EXIF `DateTimeOriginal` | 相机原图 | 标准 EXIF 解析；HEIF 格式走二进制 EXIF 兜底提取 |
+
+防护细节：
+
+- 年份限定 2010–2030，月份 1–12、日期 1–31，防止把 `20260311` 这类编号误判成日期
+- 文件直接位于源目录根目录时，跳过目录名识别，防止误判
+- **不使用 mtime（文件修改时间）**：它可能是复制过去的时间，也可能被其它操作改动，不可靠
+
+三级都识别不出 → 判为「拿不准」。
+
+### 2. 📋 复制式归档（原始文件一张不删）
+
+- 目标位置：源目录下新建 `整理后照片/年/年月/年月日/`（如 `整理后照片/2024/2024_10/2024_10_03/`）
+- 保持原始文件名，不重命名
+- 重名保护：目标已存在且大小一致 → 视为已复制过，跳过；大小不一致 → 自动加 `_1`、`_2` 后缀，绝不覆盖
+- 复制保留文件元数据（`shutil.copy2`）
+- 可重复运行：同一目录反复整理不会产生重复副本
+- 视频（.mov / .mp4）与照片同等对待
+
+### 3. 📒 双台账（每次整理自动生成）
+
+整理完成后在照片根目录生成两个固定文件名的台账（覆盖上一次）：
+
+- `整理台账.md`（人读）：生成时间、源/目标目录、统计概览表、已整理清单（日期/日期来源/源路径/目标路径）、拿不准清单、下一步操作说明
+- `整理台账.json`（机读）：`organized` 数组 + `unsure` 数组，是清理脚本的唯一依据
+
+### 4. 🧹 按台账清理（核对无误后再删原文件）
+
+`clean_organized.py` 的安全设计：
+
+- 只删台账 `organized` 里记录的源文件；拿不准的一律不碰
+- 删前逐条校验：目标副本必须存在、大小必须一致（`--verify-md5` 可追加 MD5 校验）
+- 任一校验不通过（源文件已不存在 / 副本丢失 / 大小不符）→ 跳过不删
+- 默认预览模式：只列清单不动手；必须显式 `--execute` 才真正删除
+
+### 5. 🔍 重复照片检测（只报告，不删除）
+
+`detect_duplicate.py` 两种查重：
+
+- 同名文件分组：找出 RAW+JPG 等同名不同格式的组合
+- 同大小 + MD5 确认：找出字节级重复的文件
+- 自动跳过「整理后照片」目录里的副本，不误报
+
+### 6. 👀 预览模式与支持格式
+
+- `organize.py --dry-run`：完整走一遍识别和分类流程并打印结果，但不复制任何文件、不生成台账
+- `clean_organized.py` 默认即为预览模式
+- 支持格式：`.jpg .jpeg .png .cr2 .nef .arw .heic .heif .mov .mp4`（大小写不敏感）
 
 ---
 
@@ -45,132 +111,61 @@ cd zw-photo-organizer
 # 3. 安装依赖
 pip3 install -r requirements.txt
 # 或
-pip3 install Pillow --break-system-packages
+pip3 install Pillow pillow-heif --break-system-packages
 
 # 4. 运行
 python3 scripts/organize.py "/path/to/your/photos"
 ```
 
-### 方式二：OpenClaw Skill 安装
+### 方式二：一键安装脚本
 
 ```bash
-# 克隆到 OpenClaw skills 目录
-git clone https://github.com/ztow/zw-photo-organizer.git ~/.openclaw/skills/zw-photo-organizer
-
-# 安装依赖
-pip3 install Pillow --break-system-packages
-
-# 配置 OpenClaw（可选）
-# 编辑 ~/.openclaw/openclaw.json 添加：
-# {
-#   "skills": {
-#     "zw-photo-organizer": {
-#       "path": "~/.openclaw/skills/zw-photo-organizer",
-#       "command": "/zphoto"
-#     }
-#   }
-# }
-```
-
-### 方式三：一键安装脚本
-
-```bash
-# 使用安装脚本（推荐 Mac/Linux）
 curl -fsSL https://raw.githubusercontent.com/ztow/zw-photo-organizer/main/install.sh | bash
-
-# 或使用 wget
-wget -qO- https://raw.githubusercontent.com/ztow/zw-photo-organizer/main/install.sh | bash
-```
-
-安装后直接使用：
-```bash
-zphoto "/path/to/your/photos"
-```
-
-### 方式四：OpenClaw 官方安装（未来支持）
-
-```bash
-# 未来将通过 OpenClaw 官方安装
-openclaw skill install zw-photo-organizer
-```
-
-### 方式二：作为 OpenClaw Skill 安装
-
-```bash
-# 克隆到 OpenClaw skills 目录
-git clone https://github.com/ztow/zw-photo-organizer.git ~/.openclaw/skills/zw-photo-organizer
 ```
 
 ---
 
 ## 🚀 使用方法
 
-### 命令行
+### 命令行（三步工作流）
 
 ```bash
-# 基本用法
-python3 scripts/organize.py "/path/to/your/photos"
-
-# 预览模式（不实际移动文件）
+# 第一步：预览模式（不复制任何文件，先看分类结果）
 python3 scripts/organize.py "/path/to/your/photos" --dry-run
 
-# 检测重复照片
+# 第二步：正式整理（复制到「整理后照片」，生成台账，原始文件不动）
+python3 scripts/organize.py "/path/to/your/photos"
+
+# 第三步：核对「整理后照片」无误后，删除已整理的原始文件
+python3 scripts/clean_organized.py "/path/to/your/photos"            # 先预览
+python3 scripts/clean_organized.py "/path/to/your/photos" --execute   # 确认后执行
+
+# 重复照片检测
 python3 scripts/detect_duplicate.py "/path/to/your/photos"
 ```
 
-### OpenClaw 集成
+---
 
-配置 `openclaw.json`:
-
-```json
-{
-  "skills": {
-    "zw-photo-organizer": {
-      "command": "/zphoto",
-      "script": "~/.openclaw/skills/zw-photo-organizer/scripts/organize.py",
-      "description": "智能照片整理"
-    }
-  }
-}
-```
-
-然后使用:
+## 📁 整理后的目录结构
 
 ```
-/zphoto "/Users/weizhao/Pictures/相机导出图片"
-```
-
-或自然语言:
-
-```
-帮我整理照片
+{照片根目录}/
+├── 📁 整理后照片/                  ← 复制归档的目标（新建）
+│   └── 📁 2024/
+│       └── 📁 2024_11/
+│           └── 📁 2024_11_08/
+│               └── IMG_0001.JPG   ← 照片副本
+├── 📄 整理台账.md                  ← 人读台账
+├── 📄 整理台账.json                ← 机读台账（清理脚本的依据）
+└── （原始照片全部留在原地，一张不删）
 ```
 
 ---
 
-## 📁 目录结构
+## 🔍 日期识别格式速查
 
-整理后的结构：
+### Level 1: 文件名中的日期（安卓手机导出）
 
-```
-{你的照片目录}/
-├── 📁 {年}/
-│   └── 📁 {年}_{月}/
-│       └── 📁 {年}_{月}_{日}/
-│           └── 照片文件
-├── 📁 拿不准/              ← 无法确定日期的照片
-└── 📄 YYYYMMDD_照片索引.md  ← 自动生成的索引
-```
-
----
-
-## 🔍 日期识别详解
-
-### Level 1: 文件名中的日期
-
-适用于安卓手机导出的照片。
-
-**支持的格式：**
 ```
 IMG_20241003_143022.jpg      → 2024年10月3日
 VID_20231125_203015.mp4      → 2023年11月25日
@@ -178,11 +173,8 @@ Screenshot_20250115_112233.png
 20241225_Christmas_001.jpg   → 2024年12月25日
 ```
 
-### Level 2: 上级目录中的日期
+### Level 2: 上级目录中的日期（苹果相册导出）
 
-适用于苹果相册导出的照片。
-
-**支持的格式：**
 ```
 哈尔滨市, 2025年2月12日/     → 2025年2月12日
 2024年10月3日/               → 2024年10月3日
@@ -198,36 +190,88 @@ Screenshot_20250115_112233.png
 exiftool -DateTimeOriginal IMG_3484.JPG
 ```
 
-### Level 4: 文件修改时间 (mtime)
+### 为什么不用 mtime（文件修改时间）
 
-最后的 fallback 方案。
+修改时间不可靠：可能是复制过去的时间，也可能被其它操作改动。三级都识别不出的照片记为「拿不准」——不复制、不删除、留在原处，在台账里单列，人工处理。
 
 ---
 
-## 📋 索引文件示例
+## 📒 台账示例
+
+`整理台账.md`（人读）：
 
 ```markdown
-# 照片索引
+# 整理台账
 
-> 生成时间：2026-03-11 22:10:00  
-> 源目录：/Users/weizhao/Pictures/相机导出图片  
-> 总照片数：26
+> 生成时间：2026-10-19 18:20:00
+> 源目录：/Users/weizhao/Pictures/相机导出图片
+> 目标目录：/Users/weizhao/Pictures/相机导出图片/整理后照片
+> 已整理（复制）: 26 张；拿不准（留在原处）: 2 张
 
 ## 统计概览
 
 | 日期 | 照片数 | 路径 |
 |------|--------|------|
-| 2024_11_08 | 6 | 2024/2024_11/2024_11_08 |
-| 2024_11_09 | 2 | 2024/2024_11/2024_11_09 |
-| 2024_12_13 | 18 | 2024/2024_12/2024_12_13 |
+| 2024_11_08 | 6 | 整理后照片/2024/2024_11/2024_11_08 |
+| 2024_11_09 | 2 | 整理后照片/2024/2024_11/2024_11_09 |
 
-## 详细清单
+## 已整理清单
 
-### 2024/2024_11/2024_11_08 (6张)
-- 3G9A8421.JPG (来源: mtime)
-- 3G9A8424.JPG (来源: mtime)
-- ...
+| 日期 | 日期来源 | 文件 | 源路径 | 目标路径 |
+|------|----------|------|--------|----------|
+| 2024_11_08 | filename | IMG_20241108_101530.jpg | .../IMG_20241108_101530.jpg | .../整理后照片/2024/2024_11/2024_11_08/IMG_20241108_101530.jpg |
+
+## 拿不准（未复制，留在原处，共 2 张）
+
+- .../未命名扫描件.JPG
+- .../截图.png
 ```
+
+`整理台账.json`（机读，清理脚本的唯一依据）：
+
+```json
+{
+  "generated_at": "2026-10-19 18:20:00",
+  "source_dir": "/Users/weizhao/Pictures/相机导出图片",
+  "target_dir": "/Users/weizhao/Pictures/相机导出图片/整理后照片",
+  "organized": [
+    {
+      "name": "IMG_20241108_101530.jpg",
+      "date": "2024_11_08",
+      "date_source": "filename",
+      "source_path": ".../IMG_20241108_101530.jpg",
+      "target_path": ".../整理后照片/2024/2024_11/2024_11_08/IMG_20241108_101530.jpg"
+    }
+  ],
+  "unsure": [
+    {"name": "未命名扫描件.JPG", "source_path": ".../未命名扫描件.JPG"}
+  ]
+}
+```
+
+---
+
+## 🧹 清理已整理的原始文件
+
+用户核对「整理后照片」无误后，按台账删除已整理的原始文件：
+
+```bash
+# 先预览：列出将删除的源文件、跳过的原因、保留的拿不准文件
+python3 scripts/clean_organized.py "/path/to/your/photos"
+
+# 确认后执行
+python3 scripts/clean_organized.py "/path/to/your/photos" --execute
+
+# 可选：追加 MD5 校验（大目录会慢）
+python3 scripts/clean_organized.py "/path/to/your/photos" --execute --verify-md5
+```
+
+安全设计：
+
+- 只删台账 `organized` 里的文件；拿不准的一律不碰
+- 删前校验目标副本存在且大小一致
+- 源文件不存在 / 副本丢失 / 大小不符 → 跳过不删
+- 默认预览模式，必须显式 `--execute` 才真删
 
 ---
 
@@ -237,9 +281,12 @@ exiftool -DateTimeOriginal IMG_3484.JPG
 
 ```json
 {
-  "photo_extensions": [".jpg", ".jpeg", ".png", ".cr2", ".mov", ".mp4"],
+  "photo_extensions": [".jpg", ".jpeg", ".png", ".cr2", ".nef", ".arw", ".heic", ".heif", ".mov", ".mp4"],
   "max_parent_depth": 3,
-  "unsure_folder": "拿不准"
+  "use_mtime": false,
+  "target_folder": "整理后照片",
+  "ledger_json": "整理台账.json",
+  "ledger_md": "整理台账.md"
 }
 ```
 
@@ -247,20 +294,11 @@ exiftool -DateTimeOriginal IMG_3484.JPG
 
 ## 🛡️ 安全原则
 
-1. **不删除任何照片** - 无论重复、模糊、曝光过度
-2. **拿不准的先放一边** - 放入 `拿不准/` 目录
-3. **保持原始文件名** - 不修改照片文件本身
-4. **原地整理** - 默认在源目录内整理
-
----
-
-## 📝 更新日志
-
-| 版本 | 日期 | 更新内容 |
-|------|------|----------|
-| 1.2.0 | 2026-03-11 | 添加 HEIF 支持，修复根目录日期误识别 |
-| 1.1.0 | 2026-03-11 | 日期格式优化，月份和日期补零（1→01，8→08） |
-| 1.0.0 | 2026-03-11 | 初始版本，支持四级日期识别 |
+1. **复制不移动** - 整理阶段只复制，原始文件一张不删
+2. **删除要凭证** - 只有台账里记了的已整理文件才可删，且副本必须还在
+3. **拿不准不碰** - 识别不了日期的一律留在原处，人工确认
+4. **保持原始文件名** - 不修改照片文件本身（目标重名时自动加 `_1` 后缀）
+5. **先预览再动手** - organize 和 clean 都有预览模式
 
 ---
 
