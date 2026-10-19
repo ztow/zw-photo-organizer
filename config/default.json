@@ -1,7 +1,7 @@
 {
   "name": "赵兄的智能照片整理",
-  "version": "2.0.0",
-  "description": "复制式智能照片整理：三级日期识别 + 台账管理 + 按台账清理",
+  "version": "2.1.0",
+  "description": "复制式智能照片整理：三级日期识别 + 按月归档 + 台账管理 + 按台账清理",
   "photo_extensions": [
     ".jpg",
     ".jpeg",
@@ -33,6 +33,6 @@
   "directory_structure": {
     "year": "{year}",
     "month": "{year}_{month}",
-    "day": "{year}_{month}_{day}"
+    "note": "归档到月一级，不再按日分目录；一天多张照片（如游玩照片）由用户自行细分"
   }
 }

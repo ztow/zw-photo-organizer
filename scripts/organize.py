@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-赵兄的智能照片整理 - 主脚本（v2.0.0 复制式整理）
-三级日期识别（文件名 → 上级目录 → EXIF），复制归档到「整理后照片/年/年月/年月日」，
-原始文件一律不动，生成 Markdown + JSON 双台账。
+赵兄的智能照片整理 - 主脚本（v2.1.0 复制式整理）
+三级日期识别（文件名 → 上级目录 → EXIF），复制归档到「整理后照片/年/年月」
+（按月归档，不按日分目录），原始文件一律不动，生成 Markdown + JSON 双台账。
 不用 mtime：文件修改时间不可靠（可能是复制时间，也可能被其它操作改动）。
 """
 
@@ -218,13 +218,13 @@ def organize_photos(source_dir, dry_run=False):
             continue
 
         stats['by_source'][source_type] += 1
-        year, month, day = date.split('_')
-        target_dir = target_root / year / f"{year}_{month}" / f"{year}_{month}_{day}"
+        year, month, _day = date.split('_')
+        target_dir = target_root / year / f"{year}_{month}"
         if not dry_run:
             target_dir.mkdir(parents=True, exist_ok=True)
 
         target, _ = copy_photo(photo_path, target_dir, dry_run)
-        rel_path = f"{TARGET_FOLDER}/{year}/{year}_{month}/{year}_{month}_{day}"
+        rel_path = f"{TARGET_FOLDER}/{year}/{year}_{month}"
         organized_entries.append({
             'name': photo_path.name,
             'date': date,
@@ -288,8 +288,8 @@ def write_ledger(source, target_root, stats, organized_entries, unsure_entries):
 """
     for date in sorted(stats['by_date'].keys()):
         photos = stats['by_date'][date]
-        year, month, day = date.split('_')
-        path = f"{TARGET_FOLDER}/{year}/{year}_{month}/{date}"
+        year, month, _day = date.split('_')
+        path = f"{TARGET_FOLDER}/{year}/{year}_{month}"
         content += f"| {date} | {len(photos)} | {path} |\n"
 
     content += "\n## 已整理清单\n\n"
