@@ -1,7 +1,7 @@
 {
   "name": "赵兄的智能照片整理",
-  "version": "1.0.0",
-  "description": "智能照片整理工具，支持四级日期识别",
+  "version": "2.0.0",
+  "description": "复制式智能照片整理：三级日期识别 + 台账管理 + 按台账清理",
   "photo_extensions": [
     ".jpg",
     ".jpeg",
@@ -24,8 +24,12 @@
     ]
   },
   "max_parent_depth": 3,
-  "unsure_folder": "拿不准",
-  "index_filename_template": "{date}_照片索引.md",
+  "use_mtime": false,
+  "mtime_note": "修改时间不可靠（可能是复制时间或被其它操作改动），已停用",
+  "target_folder": "整理后照片",
+  "unsure_handling": "识别不了日期的不复制、不删除，留在原处，记入台账",
+  "ledger_json": "整理台账.json",
+  "ledger_md": "整理台账.md",
   "directory_structure": {
     "year": "{year}",
     "month": "{year}_{month}",

@@ -9,7 +9,8 @@ import hashlib
 from pathlib import Path
 from collections import defaultdict
 
-PHOTO_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.cr2', '.nef', '.arw', '.heic', '.mov', '.mp4'}
+PHOTO_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.cr2', '.nef', '.arw', '.heic', '.heif', '.mov', '.mp4'}
+TARGET_FOLDER = '整理后照片'
 
 
 def get_file_hash(file_path, block_size=65536):
@@ -35,11 +36,16 @@ def find_duplicates(directory):
     
     print(f"🔍 扫描目录: {source}\n")
     
-    # 收集所有照片
+    # 收集所有照片（跳过「整理后照片」里的副本）
     photos = []
     for file_path in source.rglob('*'):
-        if file_path.is_file() and file_path.suffix.lower() in PHOTO_EXTENSIONS:
-            photos.append(file_path)
+        if not file_path.is_file():
+            continue
+        if file_path.suffix.lower() not in PHOTO_EXTENSIONS:
+            continue
+        if TARGET_FOLDER in file_path.relative_to(source).parts:
+            continue
+        photos.append(file_path)
     
     print(f"📸 发现 {len(photos)} 张照片\n")
     
