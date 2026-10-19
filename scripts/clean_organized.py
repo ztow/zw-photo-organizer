@@ -4,8 +4,8 @@
 
 安全设计：
 - 只删台账 organized 里的文件；拿不准（unsure）的一律保留
-- 删除前校验目标副本存在、大小一致（--verify-md5 可追加 MD5 校验）
-- 源文件不存在 / 副本丢失 / 大小不符 → 跳过不删
+- 删除前校验目标副本存在、大小一致、MD5 一致（大小相同不代表同一个文件）
+- 源文件不存在 / 副本丢失 / 大小不符 / MD5 不符 → 跳过不删
 - 默认预览模式，必须显式 --execute 才真正删除
 """
 
@@ -40,13 +40,12 @@ def load_ledger(source):
 
 def main():
     if len(sys.argv) < 2:
-        print("用法: python clean_organized.py <目录路径> [--execute] [--verify-md5]")
+        print("用法: python clean_organized.py <目录路径> [--execute]")
         print("示例: python clean_organized.py '/Users/weizhao/Pictures/相机导出图片'")
         sys.exit(1)
 
     source = Path(sys.argv[1]).resolve()
     execute = '--execute' in sys.argv
-    verify_md5 = '--verify-md5' in sys.argv
 
     if not source.exists():
         print(f"❌ 目录不存在: {source}")
@@ -71,7 +70,7 @@ def main():
         if src.stat().st_size != tgt.stat().st_size:
             skipped.append((src, '与副本大小不一致，不删'))
             continue
-        if verify_md5 and file_md5(src) != file_md5(tgt):
+        if file_md5(src) != file_md5(tgt):
             skipped.append((src, 'MD5 不一致，不删'))
             continue
         to_delete.append(src)

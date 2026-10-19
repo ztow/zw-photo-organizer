@@ -1,6 +1,6 @@
 {
   "name": "赵兄的智能照片整理",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "复制式智能照片整理：三级日期识别 + 按月归档 + 台账管理 + 按台账清理",
   "photo_extensions": [
     ".jpg",

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-赵兄的智能照片整理 - 主脚本（v2.1.0 复制式整理）
+赵兄的智能照片整理 - 主脚本（v2.1.1 复制式整理）
 三级日期识别（文件名 → 上级目录 → EXIF），复制归档到「整理后照片/年/年月」
 （按月归档，不按日分目录），原始文件一律不动，生成 Markdown + JSON 双台账。
 不用 mtime：文件修改时间不可靠（可能是复制时间，也可能被其它操作改动）。
@@ -10,6 +10,7 @@ import os
 import re
 import sys
 import json
+import hashlib
 import shutil
 from pathlib import Path
 from datetime import datetime
@@ -160,20 +161,37 @@ def collect_photos(source):
     return photos
 
 
+def file_md5(path, block_size=65536):
+    """计算文件 MD5"""
+    hasher = hashlib.md5()
+    with open(path, 'rb') as f:
+        while chunk := f.read(block_size):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
 def copy_photo(src, target_dir, dry_run=False):
     """复制照片到目标目录，返回 (目标路径, 是否新复制)
 
-    重名处理：目标已存在且大小一致 → 视为已复制过，跳过；
-    大小不一致 → 自动加 _1/_2 后缀，避免覆盖。
+    重名处理（大小相同不代表是同一个文件，一律以 MD5 为准）：
+    - 目标已存在且 MD5 一致 → 真正的重复文件，视为已复制过，跳过
+    - 目标被同名但不同内容的文件占用 → 依次尝试 _1/_2 后缀，
+      后缀文件 MD5 一致也跳过，都不中才用新后缀名复制
     """
     target = target_dir / src.name
     if target.exists():
-        if target.stat().st_size == src.stat().st_size:
+        src_md5 = file_md5(src)
+        if file_md5(target) == src_md5:
             return target, False
         stem, suffix = src.stem, src.suffix
         i = 1
-        while target.exists():
-            target = target_dir / f"{stem}_{i}{suffix}"
+        while True:
+            candidate = target_dir / f"{stem}_{i}{suffix}"
+            if not candidate.exists():
+                target = candidate
+                break
+            if file_md5(candidate) == src_md5:
+                return candidate, False
             i += 1
     if not dry_run:
         shutil.copy2(str(src), str(target))
